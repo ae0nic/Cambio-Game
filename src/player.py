@@ -7,7 +7,7 @@ class Player:
     score-based game logic.
     """
 
-    num_players:int = 0
+    __num_players:int = 0
 
     def __init__(self, name:str):
         """Initialize a player with a name and default empty game state.
@@ -18,9 +18,14 @@ class Player:
         self.__name:str = name
         self.__cards:list[int] = []
         self.__points:int = 0
-        self.__ID:int = Player.num_players
-        Player.num_players += 1
-    
+        self.__ID:int = Player.__num_players
+        Player.__num_players += 1
+
+    @classmethod
+    def get_num_players(cls):
+        """Return the total number of Player instances created."""
+        return cls.__num_players
+
     def get_ID(self):
         """Return the player's unique identifier assigned at creation."""
         return self.__ID
