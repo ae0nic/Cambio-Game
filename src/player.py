@@ -1,3 +1,5 @@
+from src.deck import Card
+
 class Player:
     """Represents a player in the game.
 
@@ -16,7 +18,7 @@ class Player:
             name: The player's display name.
         """
         self.__name:str = name
-        self.__cards:list[int] = []
+        self.__cards:Card = []
         self.__points:int = 0
         self.__ID:int = Player.__num_players
         Player.__num_players += 1
@@ -67,7 +69,7 @@ class Player:
         """Return a copy of the player's cards to prevent external mutation."""
         return self.__cards.copy()
 
-    def set_cards(self, cards:list[int]):
+    def set_cards(self, cards:Card):
         """Replace the player's card list with a new collection.
 
         Args:
@@ -75,7 +77,7 @@ class Player:
         """
         self.__cards = cards
 
-    def add_card(self, card:int):
+    def add_card(self, card:Card):
         """Add a single card to the player's hand if it is not already present.
 
         Args:
@@ -87,7 +89,7 @@ class Player:
         if(card in self.__cards): raise ValueError(f"Cannot add duplicate card {card}: Player #{self.__ID} ({self.__name}) already has this card.")
         self.__cards.append(card)
 
-    def add_cards(self, cards:list[int]):
+    def add_cards(self, cards:Card):
         """Add multiple cards to the player's hand if none are duplicates.
 
         Args:
@@ -100,8 +102,8 @@ class Player:
             if(card in self.__cards): raise ValueError(f"Cannot add duplicate card {card}: Player #{self.__ID} ({self.__name}) already has this card.")
         self.__cards.extend(cards)
 
-    def remove_card(self, card:int):
-        """Remove a card from the player's hand.
+    def remove_card(self, card:Card):
+        """Remove a card from the player's hand by value.
 
         Args:
             card: The card value to remove.
@@ -110,7 +112,26 @@ class Player:
             ValueError: If the card is not found in the player's hand.
         """
         self.__cards.remove(card)
+    def remove_card(self, card:int):
+        """Remove a card from the player's hand by index.
 
+        Args:
+            card: The index of the card to remove.
+
+        Raises:
+            IndexError: If the index is out of bounds.
+        """
+        return self.__cards.pop(card)
+    def __str__(self):
+        """Return a readable summary of the player's identity, score, and cards."""
+        return f"Player #{self.__ID}:\n\tName: {self.__name}\n\tPoints: {self.__points}\n\tCards: {self.__cards}"
+    def __eq__(self, other):
+        """Compare players by their unique identifier.
+
+        Args:
+                    ValueError: If the card is not found in the player's hand.
+                """
+        return self.__cards.pop(card)
     def __str__(self):
         """Return a readable summary of the player's identity, score, and cards."""
         return f"Player #{self.__ID}:\n\tName: {self.__name}\n\tPoints: {self.__points}\n\tCards: {self.__cards}"
