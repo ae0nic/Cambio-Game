@@ -114,22 +114,12 @@ class Player:
         self.__cards.remove(card)
     def remove_card(self, card:int):
         """Remove a card from the player's hand by index.
-
-        Args:
-            card: The index of the card to remove.
-
-        Raises:
-            IndexError: If the index is out of bounds.
-        """
-        return self.__cards.pop(card)
-    def __str__(self):
-        """Return a readable summary of the player's identity, score, and cards."""
-        return f"Player #{self.__ID}:\n\tName: {self.__name}\n\tPoints: {self.__points}\n\tCards: {self.__cards}"
-    def __eq__(self, other):
-        """Compare players by their unique identifier.
-
-        Args:
-                    ValueError: If the card is not found in the player's hand.
+        
+                Args:
+                    card: The card index to remove.
+        
+                Raises:
+                    IndexError: If the card is not found in the player's hand.
                 """
         return self.__cards.pop(card)
     def __str__(self):
