@@ -1,4 +1,4 @@
-from src.deck import Card
+from src.cards import Card
 
 class Player:
     """Represents a player in the game.
