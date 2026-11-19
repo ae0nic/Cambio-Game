@@ -13,6 +13,7 @@
 """Core Cambio game state, turn actions, and scoring."""
 
 from enum import Enum
+from typing import Callable
 
 if __package__:
     from .cards import Card, Deck, DiscardPile
@@ -40,15 +41,21 @@ class Cambio:
     one-based positions for players.
     """
 
-    def __init__(self, num_players:int):
+    def __init__(
+        self,
+        num_players:int,
+        input_fn:Callable[[str], str] = input,
+    ):
         """Create and shuffle a deck for a game with ``num_players`` players.
 
         Args:
             num_players: Number of players expected in this game.
+            input_fn: Function used to read console prompts.
         """
         
         self.__STARTING_HAND_SIZE:int = 4
         self.__NUM_PLAYERS:int = num_players
+        self.__input_fn = input_fn
 
         self.__game_state:GameState = GameState.NOT_STARTED
 
@@ -86,6 +93,18 @@ class Cambio:
     def get_discard_top_card(self) -> Card | None:
         """Return the top discard, or ``None`` if the pile is empty."""
         return self.__discard_pile.look_top_card()
+
+    def get_discard_cards(self) -> list[Card]:
+        """Return a copy of the face-up discard pile."""
+        return self.__discard_pile.get_cards()
+
+    def get_draw_pile_count(self) -> int:
+        """Return the number of cards remaining in the draw pile."""
+        return len(self.__deck)
+
+    def get_drawn_card(self) -> Card | None:
+        """Return the card currently awaiting the player's draw decision."""
+        return self.__drawn_card
 
     def initialize_players(self, player_names:list[str]):
         """Create the game's players.
@@ -524,21 +543,21 @@ class Cambio:
         """
         return self.__players[turn].get_points()
                         
-    @staticmethod
-    def _prompt_choice(prompt:str, choices:tuple[str, ...]) -> str:
+    def _prompt_choice(
+        self, prompt:str, choices:tuple[str, ...]
+    ) -> str:
         """Prompt until the user enters one of the allowed choices."""
         allowed = ", ".join(choices)
         while True:
-            answer = input(f"{prompt} ({allowed}): ").strip().lower()
+            answer = self.__input_fn(f"{prompt} ({allowed}): ").strip().lower()
             if answer in choices:
                 return answer
             print(f"Please enter one of: {allowed}.")
 
-    @staticmethod
-    def _prompt_position(prompt:str, count:int) -> int:
+    def _prompt_position(self, prompt:str, count:int) -> int:
         """Prompt for a 1-based position and return its zero-based index."""
         while True:
-            answer = input(f"{prompt} (1-{count}): ").strip()
+            answer = self.__input_fn(f"{prompt} (1-{count}): ").strip()
             try:
                 position = int(answer)
             except ValueError:
@@ -635,7 +654,9 @@ class Cambio:
         if swap:
             print("The selected cards have been exchanged.")
 
-    def _take_stick_action(self) -> None:
+    def _take_stick_action(
+        self, on_update:Callable[[], None] | None = None
+    ) -> None:
         """Let the current player attempt to stick a card to the discard top."""
         if not self.__players[self.__current_player].get_cards():
             print("You have no cards to stick.")
@@ -676,8 +697,14 @@ class Cambio:
             print("Stick succeeded.")
         else:
             print("Stick failed; you drew a penalty card.")
+        if on_update is not None:
+            on_update()
 
-    def turn_logic(self, turn:int) -> int | str:
+    def turn_logic(
+        self,
+        turn:int,
+        on_update:Callable[[], None] | None = None,
+    ) -> int | str:
         """Run one text-driven turn for the player at ``turn``.
 
         The caller advances the turn with ``advance_turn`` after this method
@@ -685,6 +712,7 @@ class Cambio:
 
         Args:
             turn: Zero-based index of the player taking the turn.
+            on_update: Optional callback to refresh a display after game changes.
 
         Returns:
             The player index, or ``"cambio"`` if Cambio was called.
@@ -704,6 +732,8 @@ class Cambio:
             if decision == "yes":
                 self.call_cambio()
                 print(f"{player.get_name()} called Cambio. One final round begins.")
+                if on_update is not None:
+                    on_update()
                 return "cambio"
         elif self.__game_state != GameState.CAMBIO_CALLED:
             raise Exception("Cannot take a turn in the current game state.")
@@ -716,14 +746,18 @@ class Cambio:
         actions = ("draw", "stick") if player.get_cards() else ("draw",)
         action = self._prompt_choice("Choose an action", actions)
         if action == "stick":
-            self._take_stick_action()
+            self._take_stick_action(on_update)
             return turn
 
         drawn_card = self.draw_card()
+        if on_update is not None:
+            on_update()
         print(f"You drew {drawn_card}.")
         if not player.get_cards():
             print("Your hand is empty, so this card will be added to it.")
             self.keep_drawn_card(drawn_card)
+            if on_update is not None:
+                on_update()
             return turn
 
         decision = self._prompt_choice(
@@ -738,11 +772,17 @@ class Cambio:
             replaced_card = self.swap_card(own_position, drawn_card)
             self.discard_replaced_card(replaced_card)
             print(f"{replaced_card} was discarded.")
+            if on_update is not None:
+                on_update()
         else:
             self.discard_drawn_card(drawn_card)
             print(f"{drawn_card} was discarded.")
+            if on_update is not None:
+                on_update()
             if has_card_ability(drawn_card):
                 self._resolve_drawn_ability(drawn_card)
+                if on_update is not None:
+                    on_update()
         return turn
 
     def show_bottom_cards(self, turn):
