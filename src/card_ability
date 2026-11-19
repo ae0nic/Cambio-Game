@@ -1,0 +1,138 @@
+# By submitting this assignment, I agree to the following:
+#   "Aggies do not lie, cheat, or steal, or tolerate those who do."
+#   "I have not given or received any unauthorized aid on this assignment."
+#
+# Names:        Benjamin Conley
+#               Luke Petric
+#               Lucas Allwein
+#               Cristian Godinez
+# Section:      215
+# Assignment:   Lab 13 Team
+# Date:         11 13 2026
+def card_ability(discarded_card, current_player, players):
+    # This function controls the card abilitities
+    # Add in redundancy statement if number for player is not valid
+    
+    current_cards = current_player.get_cards()
+    
+    current_player_cards = []
+    all_player_cards = []
+    for i in range(len(players)):
+        if players[i].get_cards == current_cards:
+            current_player_cards == current_cards
+        all_player_cards.append(players[i].get_cards())
+        
+    # 7 or 8 View self card
+    if discarded_card.rank in ["7", "8"]:
+        
+        if not current_cards:
+            print("You have no cards to look at.")
+            return
+        print("Your card positions:")
+        
+        for i in range(len(current_cards)):
+            print(f"{i + 1}. Card {i + 1}")
+        position = int(input(( "Which of your cards would you like to look at? ")))
+        print(f"Your card is the {current_cards[position - 1]}.")
+
+    # 9 or 10 
+    
+    elif discarded_card.rank in ["9", "10"]:
+        other_player = int(input("Which other players cards would you like to look at? "))
+        
+        while all_player_cards[other_player - 1] == current_cards:
+            other_player = int(input("That is you, pick a different player: "))
+        other_cards = all_player_cards[other_player-1]
+                
+
+        if not other_cards:
+            print(f"{players[other_player-1].get_name} has no cards.")
+            return
+
+        position = int(input("Which of their cards would you like to look at? "))
+        print(f"Other Players cards {other_cards}")
+        print( f"{players[other_player-1].get_name()}'s card {position} is " f"{other_cards[position - 1]}.")
+
+    # Jack or Queen
+    elif discarded_card.rank in ["Jack", "Queen"]:
+        
+        if not current_cards:
+            print("You have no cards to swap.")
+            return
+
+        print("\nYour card positions:")
+        own_position = int(input( "Which of your cards would you like to swap? "))
+
+
+            
+        other_player = int(input("Which other players cards would you like to look at? "))
+        
+        other_cards = []
+        while all_player_cards[other_player - 1] == current_cards:
+            other_player = int(input("That is you, pick a different player: "))
+        other_cards = all_player_cards[other_player-1]         
+            
+        if not other_cards:
+            print(f"{players[other_player-1].get_name()} has no cards to swap.")
+            return
+
+        print(f"{players[other_player-1].get_name()}'s cards:")
+        for i in range(len(other_cards)):
+            print(f"{i + 1}")
+
+        other_position = int(input(("Which of their cards would you like to swap? ")))
+        
+        placeholder_card = current_cards[own_position - 1] 
+        
+        current_cards[own_position - 1] = other_cards[other_position - 1]
+        other_cards[other_position - 1] = placeholder_card
+        
+        current_player.set_cards(current_cards)
+        players[other_player-1].set_cards(other_cards)
+        print("Cards successfully swapped!")
+
+    # King of Clubs or Spade
+    elif ( discarded_card.rank == "King" and discarded_card.suit in ["Clubs", "Spades"]):
+        
+        if not current_cards:
+            print("You have no cards to look at.")
+            return
+
+        print("Your card positions:")
+        for i in range(len(current_cards)):
+            print(f"{i + 1}. Card {i + 1}")
+            
+        own_position = int(input("Which of your cards would you like to look at? "))
+        print(f"Your card is {current_cards[own_position - 1]}.")
+
+        other_player = int(input("Which other players cards would you like to look at? "))
+        # other_cards = other_player.get_cards()
+        
+        
+        while all_player_cards[other_player - 1] == current_cards:
+            other_player = int(input("That is you, pick a different player: "))
+        other_cards = all_player_cards[other_player-1]
+
+        if not other_cards:
+            print(f"{players[other_player-1].get_name()} has no cards.")
+            return
+
+        print(f"\n{players[other_player-1].get_name()}'s cards:")
+        for i in range(len(other_cards)):
+            print(f"{i + 1}. Card {i + 1}")
+
+        other_position = int(input("Which of their cards would you like to look at? "))
+        print(f"Their card is {other_cards[other_position - 1]}.")
+
+        answer = input("Would you like to switch these cards? (Y/N): ")
+        while answer not in ["Y","N"]:
+            answer = input("Format answer correctly. Would you like to switch these cards? (Y/N): ")
+        if answer == "Y":
+            placeholder_card = current_cards[own_position - 1] 
+        
+            current_cards[own_position - 1] = other_cards[other_position - 1]
+            other_cards[other_position - 1] = placeholder_card
+            
+            current_player.set_cards(current_cards)
+            other_player.set_cards(other_cards)
+            print("Cards successfully swapped!")
