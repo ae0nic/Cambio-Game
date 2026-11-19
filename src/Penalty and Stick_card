@@ -1,0 +1,59 @@
+def penalty(current_player, wrong_stick):
+    if wrong_stick == True:
+        current_player.add_card()
+    return
+def stick_card(players, discard_pile, current_player):
+    
+    current_player_cards = current_player.get_cards()
+    all_player_cards = []
+    for i in range(len(players)):
+        all_player_cards.append(players[i].get_cards())
+    
+    current_player_stick_decision = False
+    current_player_stick_decision = (input("Would you like to stick a card? (Y/N) "))
+    choice_card_opponent = int(input("Would you like to choose an oponent's card? (Y/N) "))
+    
+    if current_player_stick_decision == "Y" and choice_card_opponent == "Y":
+        other_player = int(input("Which other players cards would you like to stick? "))
+        
+        while all_player_cards[other_player - 1] == current_player_cards:
+            other_player = int(input("That is you, pick a different player: "))
+        other_cards = all_player_cards[other_player-1]
+        
+        if not other_cards:
+            print(f"{players[other_player-1].get_name} has no cards.")
+            return
+        
+        position = int(input("Which of their cards would you like to stick"))
+        for i in other_cards:
+            print(f"Card {i}")
+            
+        selected_card = other_cards[position-1]
+        if selected_card.rank != discard_pile[-1].rank:
+                print("Wrong Stick! Draw a card.")
+                penalty(current_player, True)
+
+        else:
+            own_position = int(input( "Which of your cards would you like to give? "))
+            other_cards[position - 1] = current_player_cards[own_position - 1]
+            
+            
+            current_player.set_cards(current_player_cards[0:own_position-1]+current_player_cards[own_position-1:])
+            players[other_player-1].set_cards(other_cards)
+            
+            print("Cards successfully swapped!")
+                
+
+            
+
+    if current_player_stick_decision == "Y" and choice_card_opponent == "N":
+        if not current_player_cards:
+            print("You have no cards to stick")
+            return
+
+            own_position = int(input( "Which of your cards would you like to stick? "))            
+            selected_card = current_player_cards[own_position-1]
+            if selected_card.rank != discard_pile[-1].rank:
+                    print("Wrong Stick! Draw a card.")
+                    penalty(current_player, True)
+            current_player.set_cards(current_player_cards[0:own_position-1]+current_player_cards[own_position-1:])
