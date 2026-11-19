@@ -1,6 +1,10 @@
+"""Command-line entry point for starting a Cambio game."""
+
 from cambio import Cambio
 
+
 def main():
+    """Read a player count, create a Cambio instance, and call ``start_game``."""
     amount_players = int(input("How many players are playing the game? (2-6): "))
 
     game = Cambio(amount_players)

@@ -1,12 +1,13 @@
+"""Player state and hand-management operations for Cambio."""
+
 from src.cards import Card
 
 class Player:
     """Represents a player in the game.
 
-    Each player has a unique identifier, a display name, a running score, and a
-    collection of cards currently held. The class also provides comparison
-    operations based on the player's point total so players can be ordered in
-    score-based game logic.
+    Each player has a unique identifier, a display name, a hand, and a point
+    total derived from the cards in that hand. The class also provides
+    comparison operations based on that total.
     """
 
     __num_players:int = 0
@@ -18,7 +19,7 @@ class Player:
             name: The player's display name.
         """
         self.__name:str = name
-        self.__cards:Card = []
+        self.__cards:list[Card] = []
         self.__points:int = 0
         self.__ID:int = Player.__num_players
         Player.__num_players += 1
@@ -45,23 +46,22 @@ class Player:
         self.__name = name
     
     def get_points(self):
-        """Return the player's current score."""
+        """Return the total point value of the player's current hand."""
         return self.__points
     
     def change_points(self, amount:int):
-        """Adjust the player's score by a signed amount.
+        """Adjust the player's point total by a signed amount.
 
         Args:
-            amount: The number of points to add to the player's total. This may
-                be positive or negative.
+            amount: Points to add to the total; may be positive or negative.
         """
         self.__points += amount
 
     def set_points(self, points:int):
-        """Set the player's score to an exact value.
+        """Set the player's point total to an exact value.
 
         Args:
-            points: The new score to assign.
+            points: The new total to assign.
         """
         self.__points = points
 
@@ -69,16 +69,19 @@ class Player:
         """Return a copy of the player's cards to prevent external mutation."""
         return self.__cards.copy()
 
-    def set_cards(self, cards:Card):
+    def set_cards(self, cards:list[Card]):
         """Replace the player's card list with a new collection.
 
         Args:
             cards: A list of card values to assign to the player.
+
+        The player's point total is recalculated from the new hand.
         """
-        self.__cards = cards
+        self.__cards = cards.copy()
+        self.__recalculate_points()
 
     def add_card(self, card:Card):
-        """Add a single card to the player's hand if it is not already present.
+        """Add a card to the hand and increase points by its value.
 
         Args:
             card: The card value to add.
@@ -87,10 +90,12 @@ class Player:
             ValueError: If the card is already in the player's hand.
         """
         if(card in self.__cards): raise ValueError(f"Cannot add duplicate card {card}: Player #{self.__ID} ({self.__name}) already has this card.")
+        card_points = card.get_points()
         self.__cards.append(card)
+        self.__points += card_points
 
-    def add_cards(self, cards:Card):
-        """Add multiple cards to the player's hand if none are duplicates.
+    def add_cards(self, cards:list[Card]):
+        """Add multiple cards and increase points by their total value.
 
         Args:
             cards: Card values to append to the player's collection.
@@ -100,10 +105,12 @@ class Player:
         """
         for card in cards:
             if(card in self.__cards): raise ValueError(f"Cannot add duplicate card {card}: Player #{self.__ID} ({self.__name}) already has this card.")
+        cards_points = sum(card.get_points() for card in cards)
         self.__cards.extend(cards)
+        self.__points += cards_points
 
-    def remove_card(self, card:Card):
-        """Remove a card from the player's hand by value.
+    def remove_card_by_value(self, card:Card):
+        """Remove a card by value and subtract its points from the total.
 
         Args:
             card: The card value to remove.
@@ -112,16 +119,27 @@ class Player:
             ValueError: If the card is not found in the player's hand.
         """
         self.__cards.remove(card)
-    def remove_card(self, card:int):
-        """Remove a card from the player's hand by index.
+        self.__points -= card.get_points()
+
+    def remove_card_by_index(self, card:int):
+        """Remove a card by index and subtract its points from the total.
         
-                Args:
-                    card: The card index to remove.
+        Args:
+            card: The zero-based position of the card to remove.
         
-                Raises:
-                    IndexError: If the card is not found in the player's hand.
-                """
-        return self.__cards.pop(card)
+        Returns:
+            The removed card.
+
+        Raises:
+            IndexError: If the index is outside the player's hand.
+        """
+        removed_card = self.__cards.pop(card)
+        self.__points -= removed_card.get_points()
+        return removed_card
+
+    def __recalculate_points(self):
+        """Recompute the point total after replacing the entire hand."""
+        self.__points = sum(card.get_points() for card in self.__cards)
     def __str__(self):
         """Return a readable summary of the player's identity, score, and cards."""
         return f"Player #{self.__ID}:\n\tName: {self.__name}\n\tPoints: {self.__points}\n\tCards: {self.__cards}"
