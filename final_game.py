@@ -938,13 +938,11 @@ class Cambio:
             return False
         if own_position is None:
             raise ValueError("Select a card to give to the target player.")
-
-        own_card = current_cards[own_position]
-        target_card = target_cards[target_position]
-        current_cards[own_position] = target_card
-        target_cards[target_position] = own_card
-        current_player.set_cards(current_cards)
-        target_player.set_cards(target_cards)
+        
+        own_card = current_player.remove_card_by_index(own_position)
+        stuck_card = target_player.remove_card_by_index(target_position)
+        target_player.add_card(own_card)
+        self.__discard_pile.add_card(stuck_card)
         return True
     
     def swap_card(self, card:int, swap:Card):
@@ -1498,7 +1496,7 @@ class PygameDisplay:
                 card,
                 (card_x + card_index * (card_width + gap), card_y),
                 (card_width, card_height),
-                face_up=visible,
+                face_up=True,
             )
 
     def _draw_piles(self) -> None:
