@@ -24,6 +24,7 @@ def display_rules():
 def display_instructions():
     output = "\nInstructions for playing Cambio will be displayed on the screen\n"
     output += "Some inputs will need to be text boxes\n"
-    output += "Some inputs will be buttons on screen"
+    output += "Some inputs will be buttons on screen\n"
+    output += "Instructions will be obvious to player"
     return output
 display_rules()
