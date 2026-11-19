@@ -2,14 +2,19 @@
 
 if __package__:
     from .cambio import Cambio, GameState
+    from .display import PygameDisplay
+    from .instructions import display_rules
 else:
     from cambio import Cambio, GameState
+    from display import PygameDisplay
+    from instructions import display_rules
 
 
-def main():
-    """Run a complete text-based Cambio game."""
+
+def _run_game(display):
+    """Run a console-driven Cambio game with a live Pygame display."""
     while True:
-        answer = input("Number of players (2-6): ").strip()
+        answer = display.console_input("Number of players (2-6): ").strip()
         try:
             player_count = int(answer)
         except ValueError:
@@ -21,7 +26,9 @@ def main():
 
     player_names = []
     while len(player_names) < player_count:
-        name = input(f"Enter a name for player {len(player_names) + 1}: ").strip()
+        name = display.console_input(
+            f"Enter a name for player {len(player_names) + 1}: "
+        ).strip()
         if not name:
             print("Names cannot be empty.")
         elif name in player_names:
@@ -29,11 +36,11 @@ def main():
         else:
             player_names.append(name)
 
-    game = Cambio(player_count)
+    game = Cambio(player_count, input_fn=display.console_input)
     game.initialize_players(player_names)
 
     while True:
-        starting_name = input(
+        starting_name = display.console_input(
             f"Who starts? ({', '.join(player_names)}): "
         ).strip()
         try:
@@ -42,19 +49,24 @@ def main():
         except ValueError:
             print("Enter one of the player names shown.")
 
+    display.bind(game)
     game.deal_starting_hands()
+    display.refresh()
     print("\nStarting hands have been dealt. Each player may look at their two bottom cards.")
     for player_index, name in enumerate(player_names):
-        input(f"{name}, press Enter when you are ready to view your cards.")
+        display.console_input(f"{name}, press Enter when you are ready to view your cards.")
+        display.show_initial_cards(player_index)
         print(f"{name}, remember these cards: {game.show_bottom_cards(player_index)}")
-        input("Press Enter to pass the screen to the next player.")
+        display.console_input("Press Enter to pass the screen to the next player.")
+        display.hide_initial_cards()
 
     print(f"\nThe starting discard is {game.get_discard_top_card()}.")
     while game.get_game_state() != GameState.ENDED:
         current_player_index = game.get_current_player_index()
-        game.turn_logic(current_player_index)
+        game.turn_logic(current_player_index, display.refresh)
         if game.get_game_state() != GameState.ENDED:
             game.advance_turn()
+            display.refresh()
 
     players = game.get_players()
     lowest_score = min(game.count_points(index) for index in range(len(players)))
@@ -71,5 +83,16 @@ def main():
         )
     print(f"Winner{'s' if len(winners) != 1 else ''}: {', '.join(winners)}")
 
+
+def main():
+    """Start the console-driven game and its Pygame display."""
+    display = PygameDisplay()
+    try:
+        _run_game(display)
+    finally:
+        display.close()
+
+
 if __name__ == "__main__":
+    display_rules()
     main()
