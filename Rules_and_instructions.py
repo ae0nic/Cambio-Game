@@ -23,8 +23,7 @@ def display_rules():
         out_file.write(output)
 def display_instructions():
     output = "\nInstructions for playing Cambio will be displayed on the screen\n"
-    output += "Some inputs will need to be text boxes\n"
-    output += "Some inputs will be buttons on screen\n"
+    output += "All inputs will prompt the user for a text based response\n"
     output += "Instructions will be obvious to player"
     return output
 display_rules()
