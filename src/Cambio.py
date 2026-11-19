@@ -12,11 +12,16 @@
 
 """Core Cambio game state, turn actions, and scoring."""
 
-from symtable import Class
-from cards import Card, Deck, DiscardPile
-from card_ability import card_ability, has_card_ability
-from player import Player
 from enum import Enum
+
+if __package__:
+    from .cards import Card, Deck, DiscardPile
+    from .card_ability import card_ability, has_card_ability
+    from .player import Player
+else:
+    from cards import Card, Deck, DiscardPile
+    from card_ability import card_ability, has_card_ability
+    from player import Player
 
 class GameState(Enum):
     """Lifecycle states used to validate game actions."""
@@ -60,6 +65,27 @@ class Cambio:
 
 
         self.__current_player:int = 0
+        self.__cambio_caller:int | None = None
+
+    def get_game_state(self) -> GameState:
+        """Return the game's current lifecycle state."""
+        return self.__game_state
+
+    def get_current_player_index(self) -> int:
+        """Return the zero-based index of the current player."""
+        return self.__current_player
+
+    def get_current_player(self) -> Player:
+        """Return the current player object."""
+        return self.__players[self.__current_player]
+
+    def get_players(self) -> list[Player]:
+        """Return a copy of the game's player list."""
+        return self.__players.copy()
+
+    def get_discard_top_card(self) -> Card | None:
+        """Return the top discard, or ``None`` if the pile is empty."""
+        return self.__discard_pile.look_top_card()
 
     def initialize_players(self, player_names:list[str]):
         """Create the game's players.
@@ -107,26 +133,60 @@ class Cambio:
         """Deal the configured number of cards to every player.
 
         Raises:
-            Exception: If players have not been initialized.
+            Exception: If players have not been initialized or hands are
+                already dealt.
+            RuntimeError: If the deck runs out while dealing.
         """
         if(len(self.__players) != self.__NUM_PLAYERS):
             raise Exception("Players have not been initialized. Cannot deal starting hands.")
+        if self.__game_state != GameState.NOT_STARTED:
+            raise Exception("Starting hands have already been dealt.")
+        self.__game_state = GameState.STARTING
         for i in range(self.__NUM_PLAYERS):
             for j in range(self.__STARTING_HAND_SIZE):
-                self.__players[i].add_card(self.__deck.deal())
+                card = self.__deck.deal()
+                if card is None:
+                    raise RuntimeError("The deck ran out while dealing starting hands.")
+                self.__players[i].add_card(card)
+        opening_discard = self.__deck.deal()
+        if opening_discard is None:
+            raise RuntimeError("The deck ran out while starting the discard pile.")
+        self.__discard_pile.add_card(opening_discard)
+        self.__game_state = GameState.IN_PROGRESS
 
     def advance_turn(self):
-        """Advance the current-player index, wrapping at the end of the player list."""
-        self.__current_player = (self.__current_player + 1) % self.__NUM_PLAYERS
+        """Advance to the next player and finish the final round when appropriate.
 
-    def call_cambio(self):
-        """Mark that Cambio has been called and return the resulting game state.
+        Returns:
+            The current state after advancing.
 
         Raises:
-            Exception: If Cambio has already been called.
+            Exception: If a draw or card ability is unresolved, or turns cannot
+                advance in the current state.
         """
-        if self.__game_state == GameState.CAMBIO_CALLED:
-            raise Exception("Cambio has already been called.")
+        if self.__game_state not in (GameState.IN_PROGRESS, GameState.CAMBIO_CALLED):
+            raise Exception("Cannot advance a turn in the current game state.")
+        if self.__drawn_card is not None:
+            raise Exception("Cannot advance while a drawn card is unresolved.")
+        if self.__pending_ability_card is not None:
+            raise Exception("Cannot advance while a card ability is unresolved.")
+        self.__current_player = (self.__current_player + 1) % self.__NUM_PLAYERS
+        if self.__cambio_caller is not None and self.__current_player == self.__cambio_caller:
+            self.__game_state = GameState.ENDED
+        return self.__game_state
+
+    def call_cambio(self):
+        """Start the final round, returning the ``CAMBIO_CALLED`` state.
+
+        Every other player receives one turn. Reaching the caller again ends
+        the game.
+
+        Raises:
+            Exception: If the game is not in progress or Cambio was already called.
+        """
+        if self.__game_state != GameState.IN_PROGRESS:
+            raise Exception("Cambio can only be called during active play.")
+        self.__cambio_caller = self.__current_player
         self.__game_state = GameState.CAMBIO_CALLED
         return self.__game_state
 
@@ -137,11 +197,11 @@ class Cambio:
             The card drawn from the deck.
 
         Raises:
-            Exception: If the game is not in progress or an earlier draw or
-                ability is still unresolved.
+            Exception: If the game is not in progress or the final round, or
+                an earlier draw or ability is still unresolved.
             RuntimeError: If the deck is empty.
         """
-        if(self.__game_state != GameState.IN_PROGRESS):
+        if self.__game_state not in (GameState.IN_PROGRESS, GameState.CAMBIO_CALLED):
             raise Exception("Game is not in progress. Cannot draw a card.")
         if self.__drawn_card is not None:
             raise Exception("The previously drawn card has not been used.")
@@ -174,7 +234,33 @@ class Cambio:
             raise Exception("Not in the middle of drawing a card.")
         if card is not self.__drawn_card:
             raise ValueError("The card was not drawn on this turn.")
-        self.__game_state = GameState.IN_PROGRESS
+        self.__game_state = (
+            GameState.CAMBIO_CALLED
+            if self.__cambio_caller is not None
+            else GameState.IN_PROGRESS
+        )
+        return card
+
+    def keep_drawn_card(self, card:Card):
+        """Add the current draw to the hand, used when a player has no cards.
+
+        Args:
+            card: The exact card returned by ``draw_card``.
+
+        Returns:
+            The card added to the current player's hand.
+        """
+        if self.__game_state != GameState.DRAWING:
+            raise Exception("Not in the middle of drawing a card.")
+        if card is not self.__drawn_card:
+            raise ValueError("The card was not drawn on this turn.")
+        self.__players[self.__current_player].add_card(card)
+        self.__drawn_card = None
+        self.__game_state = (
+            GameState.CAMBIO_CALLED
+            if self.__cambio_caller is not None
+            else GameState.IN_PROGRESS
+        )
         return card
 
     def discard_drawn_card(self, card:Card):
@@ -200,7 +286,11 @@ class Cambio:
             raise ValueError("The card was not drawn on this turn.")
         self.__discard_pile.add_card(card)
         self.__drawn_card = None
-        self.__game_state = GameState.IN_PROGRESS
+        self.__game_state = (
+            GameState.CAMBIO_CALLED
+            if self.__cambio_caller is not None
+            else GameState.IN_PROGRESS
+        )
         if has_card_ability(card):
             # Only direct draw discards create this ability token.
             self.__pending_ability_card = card
@@ -249,6 +339,19 @@ class Cambio:
         )
         self.__pending_ability_card = None
         return result
+
+    def skip_card_ability(self, discarded_card:Card) -> None:
+        """Clear an ability when the game has no legal target for it.
+
+        Args:
+            discarded_card: The exact card with the pending ability.
+
+        Raises:
+            ValueError: If the card is not the pending ability.
+        """
+        if discarded_card is not self.__pending_ability_card:
+            raise ValueError("The card does not have a pending ability.")
+        self.__pending_ability_card = None
 
     def apply_stick_penalty(self) -> Card:
         """Draw a penalty card into the current player's hand.
@@ -361,7 +464,7 @@ class Cambio:
             ValueError: If ``swap`` is not the current draw.
             IndexError: If ``card`` is outside the current hand.
         """
-        if(self.__game_state != GameState.IN_PROGRESS):
+        if self.__game_state not in (GameState.IN_PROGRESS, GameState.CAMBIO_CALLED):
             raise Exception("Game is not in progress. Cannot swap a card.")
         if self.__drawn_card is None or swap is not self.__drawn_card:
             raise ValueError("The swapped card was not drawn on this turn.")
@@ -374,6 +477,16 @@ class Cambio:
         current_player.set_cards(cards)
         self.__drawn_card = None
         return replaced_card
+
+    def discard_replaced_card(self, card:Card) -> None:
+        """Place a swapped-out hand card on the discard pile.
+
+        Swapped-out cards do not trigger special-card abilities.
+
+        Args:
+            card: Card returned by ``swap_card``.
+        """
+        self.__discard_pile.add_card(card)
         
     def discard_card(self, card:int):
         """Remove a card from the current player's hand and discard it.
@@ -411,35 +524,225 @@ class Cambio:
         """
         return self.__players[turn].get_points()
                         
-    def turn_logic(self, turn):
-        """Run one console-driven turn for the player at ``turn``.
+    @staticmethod
+    def _prompt_choice(prompt:str, choices:tuple[str, ...]) -> str:
+        """Prompt until the user enters one of the allowed choices."""
+        allowed = ", ".join(choices)
+        while True:
+            answer = input(f"{prompt} ({allowed}): ").strip().lower()
+            if answer in choices:
+                return answer
+            print(f"Please enter one of: {allowed}.")
+
+    @staticmethod
+    def _prompt_position(prompt:str, count:int) -> int:
+        """Prompt for a 1-based position and return its zero-based index."""
+        while True:
+            answer = input(f"{prompt} (1-{count}): ").strip()
+            try:
+                position = int(answer)
+            except ValueError:
+                print("Enter a number.")
+                continue
+            if 1 <= position <= count:
+                return position - 1
+            print(f"Enter a number from 1 to {count}.")
+
+    def _prompt_hand_position(self, player:Player, prompt:str) -> int:
+        """Show concealed hand positions and prompt for one."""
+        cards = player.get_cards()
+        for position in range(len(cards)):
+            print(f"{position + 1}. [face down]")
+        return self._prompt_position(prompt, len(cards))
+
+    def _prompt_target_player(self) -> int | None:
+        """Prompt for an opponent who currently has cards, if one exists."""
+        options = [
+            (index, player)
+            for index, player in enumerate(self.__players)
+            if index != self.__current_player and player.get_cards()
+        ]
+        if not options:
+            return None
+        print("Choose an opponent:")
+        for option, (_, player) in enumerate(options, start=1):
+            print(f"{option}. {player.get_name()}")
+        choice = self._prompt_position("Opponent", len(options))
+        return options[choice][0]
+
+    def _resolve_drawn_ability(self, card:Card) -> None:
+        """Prompt for and resolve the ability of a directly discarded draw."""
+        current_player = self.__players[self.__current_player]
+        rank = card.rank
+
+        if rank in ("7", "8"):
+            own_position = self._prompt_hand_position(
+                current_player, "Which of your cards do you want to reveal?"
+            )
+            revealed = self.resolve_card_ability(
+                card, own_position=own_position
+            )
+            print(f"Your selected card is {revealed}.")
+            return
+
+        target_player_index = self._prompt_target_player()
+        if target_player_index is None:
+            print("There are no opponents with cards to target; the ability has no effect.")
+            self.skip_card_ability(card)
+            return
+
+        target_player = self.__players[target_player_index]
+        if rank in ("9", "10"):
+            target_position = self._prompt_hand_position(
+                target_player, "Which opponent card do you want to reveal?"
+            )
+            revealed = self.resolve_card_ability(
+                card,
+                target_player_index=target_player_index,
+                target_position=target_position,
+            )
+            print(f"{target_player.get_name()}'s selected card is {revealed}.")
+            return
+
+        own_position = self._prompt_hand_position(
+            current_player, "Which of your cards do you want to select?"
+        )
+        target_position = self._prompt_hand_position(
+            target_player, "Which opponent card do you want to select?"
+        )
+        if rank in ("Jack", "Queen"):
+            self.resolve_card_ability(
+                card,
+                own_position=own_position,
+                target_player_index=target_player_index,
+                target_position=target_position,
+            )
+            print("The selected cards have been exchanged.")
+            return
+
+        own_card = current_player.get_cards()[own_position]
+        target_card = target_player.get_cards()[target_position]
+        print(f"Your selected card is {own_card}.")
+        print(f"{target_player.get_name()}'s selected card is {target_card}.")
+        swap = self._prompt_choice("Swap the selected cards?", ("yes", "no")) == "yes"
+        self.resolve_card_ability(
+            card,
+            own_position=own_position,
+            target_player_index=target_player_index,
+            target_position=target_position,
+            swap=swap,
+        )
+        if swap:
+            print("The selected cards have been exchanged.")
+
+    def _take_stick_action(self) -> None:
+        """Let the current player attempt to stick a card to the discard top."""
+        if not self.__players[self.__current_player].get_cards():
+            print("You have no cards to stick.")
+            return
+        top_discard = self.get_discard_top_card()
+        if top_discard is None:
+            print("There is no card to stick to.")
+            return
+
+        mode = self._prompt_choice("Stick from your hand or target an opponent?", ("own", "opponent"))
+        if mode == "own":
+            own_position = self._prompt_hand_position(
+                self.__players[self.__current_player], "Which card do you want to stick?"
+            )
+            success = self.stick_card(own_position=own_position)
+        else:
+            target_player_index = self._prompt_target_player()
+            if target_player_index is None:
+                print("There are no opponents with cards to target.")
+                return
+            target_player = self.__players[target_player_index]
+            target_position = self._prompt_hand_position(
+                target_player, "Which opponent card do you want to target?"
+            )
+            own_position = None
+            target_card = target_player.get_cards()[target_position]
+            if target_card.rank == top_discard.rank:
+                own_position = self._prompt_hand_position(
+                    self.__players[self.__current_player],
+                    "Which of your cards do you want to give?",
+                )
+            success = self.stick_card(
+                own_position=own_position,
+                target_player_index=target_player_index,
+                target_position=target_position,
+            )
+        if success:
+            print("Stick succeeded.")
+        else:
+            print("Stick failed; you drew a penalty card.")
+
+    def turn_logic(self, turn:int) -> int | str:
+        """Run one text-driven turn for the player at ``turn``.
+
+        The caller advances the turn with ``advance_turn`` after this method
+        returns. Card abilities are resolved only for directly discarded draws.
 
         Args:
             turn: Zero-based index of the player taking the turn.
 
         Returns:
-            The same player index, or the string ``"cambio"`` if Cambio was
-            called.
+            The player index, or ``"cambio"`` if Cambio was called.
 
         Raises:
-            ValueError: If the player enters an action other than ``swap`` or
-                ``discard``.
+            ValueError: If ``turn`` is not the current player.
+            Exception: If a turn is requested in an invalid game state.
         """
-        decision = input(f"{self.__players[turn].get_name()}, would you like to call Cambio? (yes, no): ").lower()
-        if decision == "yes":
-            return "cambio"
-        card = self.draw_card()
-        decision = input(f"{self.__players[turn].get_name()}, do you want to swap the {card} with one of your cards or discard? (swap, discard): ").lower()
+        if turn != self.__current_player:
+            raise ValueError("The requested player is not the current player.")
+        if self.__game_state == GameState.IN_PROGRESS:
+            player = self.__players[turn]
+            decision = self._prompt_choice(
+                f"{player.get_name()}, would you like to call Cambio?",
+                ("yes", "no"),
+            )
+            if decision == "yes":
+                self.call_cambio()
+                print(f"{player.get_name()} called Cambio. One final round begins.")
+                return "cambio"
+        elif self.__game_state != GameState.CAMBIO_CALLED:
+            raise Exception("Cannot take a turn in the current game state.")
+
+        player = self.__players[turn]
+        print(f"\n{player.get_name()}'s turn.")
+        top_discard = self.get_discard_top_card()
+        print(f"Top discard: {top_discard}")
+
+        actions = ("draw", "stick") if player.get_cards() else ("draw",)
+        action = self._prompt_choice("Choose an action", actions)
+        if action == "stick":
+            self._take_stick_action()
+            return turn
+
+        drawn_card = self.draw_card()
+        print(f"You drew {drawn_card}.")
+        if not player.get_cards():
+            print("Your hand is empty, so this card will be added to it.")
+            self.keep_drawn_card(drawn_card)
+            return turn
+
+        decision = self._prompt_choice(
+            "Keep the draw by swapping it with a hand card, or discard it?",
+            ("swap", "discard"),
+        )
         if decision == "swap":
-            position = int(input("Which card would you like to swap? (1,2,3...) "))
-            card_to_keep = self.keep_card(card)
-            replaced_card = self.swap_card(position - 1, card_to_keep)
-            # Discarding the replaced hand card does not trigger an ability.
-            self.__discard_pile.add_card(replaced_card)
-        elif decision == "discard":
-            self.discard_drawn_card(card)
+            own_position = self._prompt_hand_position(
+                player, "Which card do you want to replace?"
+            )
+            self.keep_card(drawn_card)
+            replaced_card = self.swap_card(own_position, drawn_card)
+            self.discard_replaced_card(replaced_card)
+            print(f"{replaced_card} was discarded.")
         else:
-            raise ValueError("Invalid choice. Enter 'swap' or 'discard'.")
+            self.discard_drawn_card(drawn_card)
+            print(f"{drawn_card} was discarded.")
+            if has_card_ability(drawn_card):
+                self._resolve_drawn_ability(drawn_card)
         return turn
 
     def show_bottom_cards(self, turn):

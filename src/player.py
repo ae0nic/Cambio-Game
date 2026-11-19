@@ -1,6 +1,9 @@
 """Player state and hand-management operations for Cambio."""
 
-from src.cards import Card
+if __package__:
+    from .cards import Card
+else:
+    from cards import Card
 
 class Player:
     """Represents a player in the game.

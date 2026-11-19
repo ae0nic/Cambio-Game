@@ -1,7 +1,11 @@
 """Helpers for inspecting and exchanging cards during special-card abilities."""
 
-from cards import Card
-from player import Player
+if __package__:
+    from .cards import Card
+    from .player import Player
+else:
+    from cards import Card
+    from player import Player
 
 
 def has_card_ability(card: Card) -> bool:
