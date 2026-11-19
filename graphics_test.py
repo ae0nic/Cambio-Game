@@ -262,14 +262,16 @@ def update():
     global clock
     global game
     screen.fill(0x6E355A)
-    for i, p in enumerate(game.get_players()):
-        screen.blit(draw_card_back(masks, (460, 240)), (460, 240))
-        screen.blit(draw_card_back(masks, (465, 235)), (465, 235))
-        screen.blit(draw_card_back(masks, (470, 230)), (470, 230))
+    screen.blit(draw_card_back(masks, (460, 240)), (460, 240))
+    screen.blit(draw_card_back(masks, (465, 235)), (465, 235))
+    screen.blit(draw_card_back(masks, (470, 230)), (470, 230))
+    discard = game.get_discard()
+    if discard:
         screen.blit(draw_card_front(game.get_discard(), masks, (430, 240)), (430, 240))
+    for i, p in enumerate(game.get_players()):
         draw_card_inventory(screen, masks, [(c, c.face_up) for c in p.get_cards()], None, i)
-        pygame.display.flip()
-        clock.tick(60)
+    pygame.display.flip()
+    clock.tick(60)
 
 def main():
     global screen
@@ -320,17 +322,6 @@ def main():
 
     game.start_game(update)
     while running:
-        mx, my = pygame.mouse.get_pos()
-        key_pressed = None
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                running = False
-        screen.fill(0x6E355A)
-
-        for i, p in enumerate(game.get_players()):
-            draw_card_inventory(screen, masks, [(c, c.face_up) for c in p.get_cards()], card_to_surf, i)
-        pygame.display.flip()
-        clock.tick(60)
-
+        update()
 if __name__ == "__main__":
     main()
