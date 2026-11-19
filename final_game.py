@@ -1496,7 +1496,7 @@ class PygameDisplay:
                 card,
                 (card_x + card_index * (card_width + gap), card_y),
                 (card_width, card_height),
-                face_up=True,
+                face_up=visible,
             )
 
     def _draw_piles(self) -> None:
